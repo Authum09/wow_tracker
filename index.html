@@ -193,6 +193,9 @@
     <button class="tab-btn active" onclick="switchTab('mine',this)">
       Meine Charaktere <span class="tab-count" id="myCount">—</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('friends',this)">
+      Freunde <span class="tab-count" id="friendsCount">—</span>
+    </button>
     <button class="tab-btn" onclick="switchTab('watch',this)">
       Beobachten <span class="tab-count" id="watchCount">0</span>
     </button>
@@ -225,7 +228,35 @@
     </div>
   </div>
 
-  <!-- ══════ TAB 2: BEOBACHTEN ══════ -->
+
+  <!-- ══════ TAB 2: FREUNDE ══════ -->
+  <div class="tab-pane" id="tab-friends">
+    <div class="controls">
+      <div class="sort-bar">
+        Sortieren:
+        <button class="sort-btn active" onclick="sortFriendCards('name',this)">Name</button>
+        <button class="sort-btn" onclick="sortFriendCards('ilvl',this)">Ilvl ↓</button>
+        <button class="sort-btn" onclick="sortFriendCards('class',this)">Klasse</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <span class="last-updated" id="friendsLastUpdated"></span>
+        <button class="btn" id="friendsRefreshBtn" onclick="loadFriendChars()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Daten laden
+        </button>
+      </div>
+    </div>
+    <div class="grid" id="friendsGrid">
+      <div class="state-container">
+        <div class="state-title">Bereit</div>
+        <div class="state-sub">Klicke auf „Daten laden“ um die Freunde-Daten abzurufen</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ TAB 3: BEOBACHTEN ══════ -->
   <div class="tab-pane" id="tab-watch">
     <div class="add-char-panel">
       <div class="panel-title">✦ Charakter hinzufügen</div>
@@ -355,6 +386,62 @@ function renderMyCards() {
   const g = document.getElementById('myGrid');
   g.innerHTML = '';
   sortChars([...myChars], mySortBy).forEach((c,i) => g.appendChild(buildCard(c,i,false)));
+}
+
+// ── Friends list ──────────────────────────────────────────────
+// Freunde hier eintragen: { name, realm, region }
+const FRIENDS_LIST = [
+  { name: 'Nesquik', realm: 'Eredar', region: 'eu' },
+  { name: 'Cerox', realm: 'Eredar', region: 'eu' },
+  { name: 'Balu', realm: 'Eredar', region: 'eu' },
+];
+
+let friendChars  = [];
+let friendSortBy = 'name';
+
+async function loadFriendChars() {
+  const btn = document.getElementById('friendsRefreshBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  setGrid('friendsGrid', loadingHTML('Freunde werden geladen', 'Rufe Blizzard API ab …'));
+  friendChars = [];
+  const errors = [];
+  for (const entry of FRIENDS_LIST) {
+    try {
+      const url = API_BASE + '/api/character?name=' + encodeURIComponent(entry.name) + '&realm=' + encodeURIComponent(entry.realm) + '&region=' + entry.region;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      friendChars.push(d);
+    } catch(e) { errors.push(entry.name + ' (' + entry.realm + '): ' + e.message); }
+  }
+  document.getElementById('friendsCount').textContent = friendChars.length;
+  renderFriendCards(errors);
+  document.getElementById('friendsLastUpdated').textContent = 'Zuletzt: ' + new Date().toLocaleTimeString('de-DE');
+  btn.disabled = false; btn.classList.remove('loading');
+}
+
+function sortFriendCards(by, el) {
+  friendSortBy = by;
+  document.querySelectorAll('#tab-friends .sort-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderFriendCards();
+}
+
+function renderFriendCards(errors = []) {
+  const g = document.getElementById('friendsGrid');
+  if (!friendChars.length && !errors.length) {
+    setGrid('friendsGrid', '<div class="state-container"><div class="state-title">Bereit</div><div class="state-sub">Klicke auf „Daten laden“</div></div>');
+    return;
+  }
+  g.innerHTML = '';
+  sortChars([...friendChars], friendSortBy).forEach((c,i) => g.appendChild(buildCard(c,i,false)));
+  if (errors.length) {
+    const div = document.createElement('div');
+    div.style.cssText = 'grid-column:1/-1;padding:16px;';
+    div.innerHTML = errors.map(e => '<div style="font-size:13px;color:#c05050;margin:3px 0">⚠ ' + e + '</div>').join('');
+    g.appendChild(div);
+  }
 }
 
 // ── Watch list ────────────────────────────────────────────────
