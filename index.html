@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WoW Item Level Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c8a84b;
+    --gold-bright: #ffd700;
+    --gold-dim: #7a6430;
+    --bg-deep: #0a0804;
+    --bg-card: #12100a;
+    --border: #2a2216;
+    --border-gold: #3d3020;
+    --text-bright: #f0e8d0;
+    --text-muted: #8a7d60;
+    --text-dim: #4a4030;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-deep);
+    color: var(--text-bright);
+    font-family: 'Crimson Pro', Georgia, serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(200,168,75,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(200,168,75,0.03) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='none'/%3E%3Cpath d='M0 30h60M30 0v60' stroke='%23c8a84b' stroke-width='0.15' opacity='0.15'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 1600px; margin: 0 auto; padding: 0 24px 60px; }
+
+  /* Header */
+  header { text-align: center; padding: 48px 0 32px; }
+  header::after {
+    content: '';
+    display: block;
+    width: 600px;
+    max-width: 90%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 24px auto 0;
+  }
+  .header-ornament { font-family:'Cinzel Decorative',serif; font-size:11px; letter-spacing:6px; color:var(--gold-dim); text-transform:uppercase; margin-bottom:12px; }
+  h1 { font-family:'Cinzel Decorative',serif; font-size:clamp(24px,4vw,48px); font-weight:700; color:var(--gold); text-shadow:0 0 40px rgba(200,168,75,.4),0 2px 4px rgba(0,0,0,.8); letter-spacing:3px; line-height:1.2; }
+  .subtitle { font-family:'Crimson Pro',serif; font-size:16px; color:var(--text-muted); margin-top:8px; letter-spacing:2px; font-style:italic; }
+  .ornament { text-align:center; color:var(--gold-dim); font-size:18px; letter-spacing:8px; margin:4px 0 0; }
+
+  /* Tabs */
+  .tabs-nav { display:flex; gap:0; margin:28px 0 0; border-bottom:1px solid var(--border-gold); }
+  .tab-btn {
+    padding:12px 32px;
+    background:transparent;
+    border:1px solid transparent;
+    border-bottom:none;
+    color:var(--text-dim);
+    font-family:'Cinzel',serif;
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:all .25s;
+    position:relative;
+    bottom:-1px;
+  }
+  .tab-btn:hover { color:var(--text-muted); }
+  .tab-btn.active { color:var(--gold); border-color:var(--border-gold); border-bottom-color:var(--bg-deep); background:var(--bg-deep); }
+  .tab-count { display:inline-block; margin-left:6px; padding:1px 7px; background:var(--border); border-radius:10px; font-size:10px; color:var(--text-muted); }
+  .tab-btn.active .tab-count { background:var(--gold-dim); color:var(--gold); }
+  .tab-pane { display:none; padding-top:28px; }
+  .tab-pane.active { display:block; }
+
+  /* Controls */
+  .controls { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:28px; flex-wrap:wrap; }
+  .last-updated { font-family:'Crimson Pro',serif; font-size:13px; color:var(--text-dim); font-style:italic; }
+  .sort-bar { display:flex; align-items:center; gap:8px; font-family:'Cinzel',serif; font-size:11px; letter-spacing:1px; color:var(--text-dim); text-transform:uppercase; }
+  .sort-btn { padding:6px 14px; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-family:'Cinzel',serif; font-size:11px; letter-spacing:1px; cursor:pointer; transition:all .2s; text-transform:uppercase; }
+  .sort-btn:hover,.sort-btn.active { border-color:var(--gold-dim); color:var(--gold); }
+
+  /* Buttons */
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 24px; background:transparent; border:1px solid var(--gold-dim); color:var(--gold); font-family:'Cinzel',serif; font-size:12px; letter-spacing:2px; cursor:pointer; transition:all .3s; text-transform:uppercase; position:relative; overflow:hidden; }
+  .btn::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(200,168,75,.1),transparent); opacity:0; transition:opacity .3s; }
+  .btn:hover { border-color:var(--gold); color:var(--gold-bright); }
+  .btn:hover::before { opacity:1; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  .btn.loading svg { animation:spin 1s linear infinite; }
+  .btn-sm { padding:7px 14px; font-size:10px; letter-spacing:1px; }
+  .btn-danger { border-color:#5a1a1a; color:#c05050; }
+  .btn-danger:hover { border-color:#c05050; color:#ff6060; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* Grid */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+
+  /* Card */
+  .card { background:var(--bg-card); border:1px solid var(--border); position:relative; transition:transform .3s,border-color .3s; animation:fadeIn .5s ease both; }
+  .card:hover { transform:translateY(-2px); border-color:var(--border-gold); }
+  .card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:var(--cls-color,var(--gold-dim)); opacity:.7; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  .card-header { display:flex; align-items:center; gap:12px; padding:16px; border-bottom:1px solid var(--border); }
+  .avatar-wrap { width:52px; height:52px; border:2px solid var(--cls-color,var(--gold-dim)); flex-shrink:0; overflow:hidden; }
+  .avatar-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--border); font-size:20px; }
+  .char-info { flex:1; min-width:0; }
+  .char-name { font-family:'Cinzel',serif; font-size:15px; font-weight:600; color:var(--text-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .char-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .char-class { font-size:12px; font-weight:600; color:var(--cls-color,var(--text-muted)); letter-spacing:.5px; }
+  .ilvl-badge { text-align:center; flex-shrink:0; }
+  .ilvl-number { font-family:'Cinzel',serif; font-size:24px; font-weight:700; color:var(--gold); line-height:1; }
+  .ilvl-label { font-size:10px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-top:2px; }
+  .card-actions { padding:8px 16px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
+
+  /* Slots */
+  .slots { padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:3px 12px; }
+  .slot-row { display:flex; align-items:center; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(42,34,22,.5); }
+  .slot-name { font-size:11px; color:var(--text-dim); letter-spacing:.3px; }
+  .slot-ilvl { font-family:'Cinzel',serif; font-size:12px; font-weight:600; }
+  .slot-ilvl.q-EPIC { color:#a335ee; }
+  .slot-ilvl.q-RARE { color:#0070dd; }
+  .slot-ilvl.q-UNCOMMON { color:#1eff00; }
+  .slot-ilvl.q-COMMON { color:var(--text-muted); }
+  .slot-ilvl.q-LEGENDARY { color:#ff8000; }
+  .slot-ilvl.q-HEIRLOOM { color:#00ccff; }
+  .slot-ilvl.empty { color:var(--text-dim); font-size:10px; }
+
+  /* Add-char panel */
+  .add-char-panel { background:var(--bg-card); border:1px solid var(--border-gold); padding:24px 28px; margin-bottom:20px; position:relative; }
+  .add-char-panel::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
+  .panel-title { font-family:'Cinzel',serif; font-size:13px; letter-spacing:2px; color:var(--gold); text-transform:uppercase; margin-bottom:16px; }
+  .add-char-form { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .form-group { display:flex; flex-direction:column; gap:5px; }
+  .form-label { font-size:11px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; font-family:'Cinzel',serif; }
+  .form-input { padding:9px 14px; background:rgba(0,0,0,.4); border:1px solid var(--border); color:var(--text-bright); font-family:'Crimson Pro',serif; font-size:15px; outline:none; transition:border-color .2s; min-width:180px; }
+  .form-input:focus { border-color:var(--gold-dim); }
+  .form-input::placeholder { color:var(--text-dim); }
+  .form-input.error { border-color:#c05050 !important; }
+  .form-select { padding:9px 14px; background:rgba(0,0,0,.4); border:1px solid var(--border); color:var(--text-muted); font-family:'Cinzel',serif; font-size:11px; letter-spacing:1px; outline:none; cursor:pointer; transition:border-color .2s; -webkit-appearance:none; appearance:none; padding-right:28px; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a6430'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; }
+  .form-select:focus { border-color:var(--gold-dim); color:var(--gold); }
+  .form-select option { background:#1a1610; color:var(--text-bright); }
+
+  /* Watch list tags */
+  .watched-list { background:rgba(0,0,0,.2); border:1px solid var(--border); padding:12px 16px; margin-bottom:20px; }
+  .watched-list-title { font-family:'Cinzel',serif; font-size:11px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin-bottom:10px; }
+  .watched-tags { display:flex; flex-wrap:wrap; gap:8px; min-height:28px; align-items:center; }
+  .watched-tag { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:var(--bg-card); border:1px solid var(--border); font-size:12px; color:var(--text-muted); font-family:'Cinzel',serif; letter-spacing:.5px; }
+  .tag-realm { font-size:10px; color:var(--text-dim); }
+  .remove-tag { cursor:pointer; color:var(--text-dim); font-size:14px; line-height:1; transition:color .2s; margin-left:2px; }
+  .remove-tag:hover { color:#c05050; }
+  .watched-empty { font-size:13px; color:var(--text-dim); font-style:italic; }
+
+  /* State containers */
+  .state-container { grid-column:1/-1; text-align:center; padding:80px 20px; }
+  .loading-ring { width:60px; height:60px; border:3px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 24px; }
+  .state-title { font-family:'Cinzel',serif; font-size:18px; color:var(--gold); margin-bottom:8px; }
+  .state-sub { font-size:14px; color:var(--text-dim); font-style:italic; }
+  .error-icon { font-size:48px; margin-bottom:16px; }
+
+  /* Setup notice */
+  .setup-notice { background:rgba(200,168,75,.06); border:1px solid var(--border-gold); padding:20px 24px; margin-bottom:0; font-size:14px; color:var(--text-muted); line-height:1.8; }
+  .setup-notice strong { color:var(--gold); font-family:'Cinzel',serif; font-size:13px; letter-spacing:1px; }
+  .setup-notice code { background:rgba(0,0,0,.4); padding:2px 6px; font-size:12px; color:var(--gold); border:1px solid var(--border); }
+  .setup-notice .dismiss { float:right; cursor:pointer; color:var(--text-dim); font-size:18px; line-height:1; }
+  .setup-notice .dismiss:hover { color:var(--gold); }
+
+  @media (max-width:600px) {
+    .grid { grid-template-columns:1fr; }
+    .controls { flex-direction:column; align-items:stretch; }
+    .add-char-form { flex-direction:column; }
+    .tab-btn { padding:10px 14px; font-size:10px; letter-spacing:1px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-ornament">⚔ &nbsp; Azeroth Chronicles &nbsp; ⚔</div>
+    <h1>Item Level Tracker</h1>
+    <div class="subtitle">Eredar &mdash; EU</div>
+  </header>
+  <div class="ornament">— ✦ —</div>
+
+  <nav class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('mine',this)">
+      Meine Charaktere <span class="tab-count" id="myCount">—</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('watch',this)">
+      Beobachten <span class="tab-count" id="watchCount">0</span>
+    </button>
+  </nav>
+
+  <!-- ══════ TAB 1: MEINE CHARAKTERE ══════ -->
+  <div class="tab-pane active" id="tab-mine">
+    <div class="controls">
+      <div class="sort-bar">
+        Sortieren:
+        <button class="sort-btn active" onclick="sortMyCards('name',this)">Name</button>
+        <button class="sort-btn" onclick="sortMyCards('ilvl',this)">Ilvl ↓</button>
+        <button class="sort-btn" onclick="sortMyCards('class',this)">Klasse</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <span class="last-updated" id="lastUpdated"></span>
+        <button class="btn" id="refreshBtn" onclick="loadMyChars()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Daten laden
+        </button>
+      </div>
+    </div>
+    <div class="grid" id="myGrid">
+      <div class="state-container">
+        <div class="state-title">Bereit</div>
+        <div class="state-sub">Klicke auf „Daten laden" um die Charakterdaten abzurufen</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ TAB 2: BEOBACHTEN ══════ -->
+  <div class="tab-pane" id="tab-watch">
+    <div class="add-char-panel">
+      <div class="panel-title">✦ Charakter hinzufügen</div>
+      <div class="add-char-form">
+        <div class="form-group">
+          <label class="form-label">Charaktername</label>
+          <input class="form-input" id="inputCharName" placeholder="z.B. Thrall" onkeydown="if(event.key==='Enter')addWatchChar()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Realm</label>
+          <input class="form-input" id="inputRealm" placeholder="z.B. Eredar" onkeydown="if(event.key==='Enter')addWatchChar()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Region</label>
+          <select class="form-select" id="inputRegion">
+            <option value="eu">EU</option>
+            <option value="us">US</option>
+            <option value="kr">KR</option>
+            <option value="tw">TW</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">&nbsp;</label>
+          <button class="btn" onclick="addWatchChar()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Hinzufügen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="watched-list">
+      <div class="watched-list-title">Beobachtungsliste</div>
+      <div class="watched-tags" id="watchedTags">
+        <span class="watched-empty">Noch keine Charaktere hinzugefügt</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="sort-bar">
+        Sortieren:
+        <button class="sort-btn active" onclick="sortWatchCards('name',this)">Name</button>
+        <button class="sort-btn" onclick="sortWatchCards('ilvl',this)">Ilvl ↓</button>
+        <button class="sort-btn" onclick="sortWatchCards('class',this)">Klasse</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <span class="last-updated" id="watchLastUpdated"></span>
+        <button class="btn" id="watchRefreshBtn" onclick="loadWatchChars()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Alle laden
+        </button>
+      </div>
+    </div>
+
+    <div class="grid" id="watchGrid">
+      <div class="state-container">
+        <div class="state-title">Keine Charaktere</div>
+        <div class="state-sub">Füge oben Charaktere hinzu um sie zu beobachten</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Konfiguration ──────────────────────────────────────────
+const API_BASE = 'https://odd-haze-05b0.billywurow-edc.workers.dev/';
+
+const CLASS_COLORS = {
+  'Death Knight':'#c41e3a','Demon Hunter':'#a330c9','Druid':'#ff7c0a','Evoker':'#33937f',
+  'Hunter':'#aad372','Mage':'#3fc7eb','Monk':'#00ff98','Paladin':'#f48cba',
+  'Priest':'#c0c0c0','Rogue':'#fff468','Shaman':'#0070dd','Warlock':'#8788ee','Warrior':'#c69b3a',
+};
+const CLASS_ICONS = {
+  'Death Knight':'💀','Demon Hunter':'👁','Druid':'🌿','Evoker':'🐉','Hunter':'🏹',
+  'Mage':'❄️','Monk':'☯','Paladin':'🌟','Priest':'✨','Rogue':'🗡','Shaman':'⚡','Warlock':'🔮','Warrior':'⚔️',
+};
+const LEFT_SLOTS  = ['Head','Neck','Shoulder','Back','Chest','Wrist','Main Hand','Off Hand'];
+const RIGHT_SLOTS = ['Hands','Waist','Legs','Feet','Ring 1','Ring 2','Trinket 1','Trinket 2'];
+const STORAGE_KEY = 'wow_watch_list_v1';
+
+let myChars     = [];
+let watchChars  = [];
+let watchList   = loadWatchList();
+let mySortBy    = 'name';
+let watchSortBy = 'name';
+
+// ── Tabs ──────────────────────────────────────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── My chars ──────────────────────────────────────────────────
+async function loadMyChars() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  setGrid('myGrid', loadingHTML('Charakterdaten werden geladen','Rufe Blizzard API ab …'));
+  try {
+    const r = await fetch(API_BASE + '/api/characters');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    myChars = await r.json();
+    if (myChars.error) throw new Error(myChars.error);
+    document.getElementById('myCount').textContent = myChars.length;
+    renderMyCards();
+    document.getElementById('lastUpdated').textContent = 'Zuletzt: ' + new Date().toLocaleTimeString('de-DE');
+  } catch {
+    setGrid('myGrid', errorHTML('Stelle sicher, dass <code style="color:var(--gold)">python server.py</code> läuft.'));
+  }
+  btn.disabled = false; btn.classList.remove('loading');
+}
+
+function sortMyCards(by, el) {
+  mySortBy = by;
+  document.querySelectorAll('#tab-mine .sort-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderMyCards();
+}
+
+function renderMyCards() {
+  const g = document.getElementById('myGrid');
+  g.innerHTML = '';
+  sortChars([...myChars], mySortBy).forEach((c,i) => g.appendChild(buildCard(c,i,false)));
+}
+
+// ── Watch list ────────────────────────────────────────────────
+function loadWatchList() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+}
+function saveWatchList() { localStorage.setItem(STORAGE_KEY, JSON.stringify(watchList)); }
+
+function addWatchChar() {
+  const name   = document.getElementById('inputCharName').value.trim();
+  const realm  = document.getElementById('inputRealm').value.trim();
+  const region = document.getElementById('inputRegion').value;
+  if (!name) { flash('inputCharName'); return; }
+  if (!realm) { flash('inputRealm'); return; }
+  const key = name.toLowerCase() + '-' + realm.toLowerCase() + '-' + region;
+  if (watchList.some(c => c.name.toLowerCase()+'-'+c.realm.toLowerCase()+'-'+c.region === key)) {
+    flash('inputCharName'); return;
+  }
+  watchList.push({name, realm, region});
+  saveWatchList();
+  document.getElementById('inputCharName').value = '';
+  document.getElementById('inputRealm').value = '';
+  renderWatchTags();
+  document.getElementById('watchCount').textContent = watchList.length;
+}
+
+function removeWatchChar(i) {
+  const rem = watchList[i];
+  watchList.splice(i, 1);
+  watchChars = watchChars.filter(c => !(c.name.toLowerCase()===rem.name.toLowerCase() && c.realm.toLowerCase()===rem.realm.toLowerCase()));
+  saveWatchList();
+  renderWatchTags();
+  renderWatchCards();
+  document.getElementById('watchCount').textContent = watchList.length;
+}
+
+function renderWatchTags() {
+  const el = document.getElementById('watchedTags');
+  if (!watchList.length) { el.innerHTML = '<span class="watched-empty">Noch keine Charaktere hinzugefügt</span>'; return; }
+  el.innerHTML = watchList.map((c,i) => `
+    <div class="watched-tag">
+      ${c.name} <span class="tag-realm">${c.realm} (${c.region.toUpperCase()})</span>
+      <span class="remove-tag" onclick="removeWatchChar(${i})" title="Entfernen">✕</span>
+    </div>`).join('');
+}
+
+async function loadWatchChars() {
+  if (!watchList.length) return;
+  const btn = document.getElementById('watchRefreshBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  setGrid('watchGrid', loadingHTML('Lade ' + watchList.length + ' Charakter(e)','Rufe Blizzard API ab …'));
+  watchChars = [];
+  const errors = [];
+  for (const entry of watchList) {
+    try {
+      const url = `${API_BASE}/api/character?name=${encodeURIComponent(entry.name)}&realm=${encodeURIComponent(entry.realm)}&region=${entry.region}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      watchChars.push(d);
+    } catch(e) { errors.push(entry.name + ' (' + entry.realm + '): ' + e.message); }
+  }
+  renderWatchCards(errors);
+  document.getElementById('watchLastUpdated').textContent = 'Zuletzt: ' + new Date().toLocaleTimeString('de-DE');
+  btn.disabled = false; btn.classList.remove('loading');
+}
+
+function sortWatchCards(by, el) {
+  watchSortBy = by;
+  document.querySelectorAll('#tab-watch .sort-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderWatchCards();
+}
+
+function renderWatchCards(errors = []) {
+  const g = document.getElementById('watchGrid');
+  if (!watchList.length) {
+    setGrid('watchGrid', '<div class="state-container"><div class="state-title">Keine Charaktere</div><div class="state-sub">Füge oben Charaktere hinzu</div></div>');
+    return;
+  }
+  if (!watchChars.length && !errors.length) {
+    setGrid('watchGrid', '<div class="state-container"><div class="state-title">Bereit</div><div class="state-sub">Klicke auf „Alle laden"</div></div>');
+    return;
+  }
+  g.innerHTML = '';
+  sortChars([...watchChars], watchSortBy).forEach((c,i) => g.appendChild(buildCard(c,i,true)));
+  if (errors.length) {
+    const div = document.createElement('div');
+    div.style.cssText = 'grid-column:1/-1;padding:16px;';
+    div.innerHTML = errors.map(e => `<div style="font-size:13px;color:#c05050;margin:3px 0">⚠ ${e}</div>`).join('');
+    g.appendChild(div);
+  }
+}
+
+// ── Card builder ──────────────────────────────────────────────
+function buildCard(char, index, showRemove) {
+  const cls   = char.class || 'Unknown';
+  const color = CLASS_COLORS[cls] || '#c8a84b';
+  const icon  = CLASS_ICONS[cls] || '⚔';
+  const card  = document.createElement('div');
+  card.className = 'card';
+  card.style.setProperty('--cls-color', color);
+  card.style.animationDelay = index * 60 + 'ms';
+
+  const av = char.avatar
+    ? `<img src="${char.avatar}" alt="${char.name}" onerror="this.parentElement.innerHTML='<div class=avatar-placeholder>${icon}</div>'">`
+    : `<div class="avatar-placeholder">${icon}</div>`;
+
+  const regionTag = char.region
+    ? `<span style="font-size:10px;color:var(--text-dim);margin-left:5px">${char.region.toUpperCase()}</span>` : '';
+
+  const actions = showRemove
+    ? `<div class="card-actions"><button class="btn btn-sm btn-danger" onclick="removeByName('${char.name}','${char.realm}')">✕ Entfernen</button></div>` : '';
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="avatar-wrap">${av}</div>
+      <div class="char-info">
+        <div class="char-name">${char.name}${regionTag}</div>
+        <div class="char-class">${cls}</div>
+        <div class="char-meta">${char.spec} · Lvl ${char.level} · ${char.realm}</div>
+      </div>
+      <div class="ilvl-badge">
+        <div class="ilvl-number">${char.equipped_ilvl}</div>
+        <div class="ilvl-label">Ilvl</div>
+      </div>
+    </div>
+    <div class="slots">
+      <div>${LEFT_SLOTS.map(s=>slotRow(char,s)).join('')}</div>
+      <div>${RIGHT_SLOTS.map(s=>slotRow(char,s)).join('')}</div>
+    </div>
+    ${actions}`;
+  return card;
+}
+
+function slotRow(char, name) {
+  const item = char.slots && char.slots[name];
+  const cls  = item ? 'q-' + item.quality : 'empty';
+  const tip  = item ? ` title="${item.name}"` : '';
+  return `<div class="slot-row"><span class="slot-name">${name}</span><span class="slot-ilvl ${cls}"${tip}>${item ? item.ilvl : '—'}</span></div>`;
+}
+
+function removeByName(name, realm) {
+  const i = watchList.findIndex(c => c.name.toLowerCase()===name.toLowerCase() && c.realm.toLowerCase()===realm.toLowerCase());
+  if (i !== -1) removeWatchChar(i);
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function sortChars(arr, by) {
+  if (by==='name')  return arr.sort((a,b)=>a.name.localeCompare(b.name));
+  if (by==='ilvl')  return arr.sort((a,b)=>b.equipped_ilvl-a.equipped_ilvl);
+  if (by==='class') return arr.sort((a,b)=>(a.class||'').localeCompare(b.class||''));
+  return arr;
+}
+function setGrid(id, html) { document.getElementById(id).innerHTML = html; }
+function loadingHTML(t,s) { return `<div class="state-container"><div class="loading-ring"></div><div class="state-title">${t}</div><div class="state-sub">${s}</div></div>`; }
+function errorHTML(s)     { return `<div class="state-container"><div class="error-icon">⚠️</div><div class="state-title">Verbindungsfehler</div><div class="state-sub">${s}</div></div>`; }
+function flash(id) {
+  const el = document.getElementById(id);
+  el.classList.add('error');
+  setTimeout(()=>el.classList.remove('error'), 1000);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+renderWatchTags();
+document.getElementById('watchCount').textContent = watchList.length;
+</script>
+</body>
+</html>
